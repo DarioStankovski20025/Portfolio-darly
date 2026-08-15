@@ -1,0 +1,490 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   DARLY — design tokens
+   Swiss editorial structure, midnight surfaces, an aqua→violet signature,
+   light/dark chapters.
+------------------------------------------------------------------ */
+
+@theme {
+  /* Surfaces — cloud white against midnight blue. The blue undertone in the
+     dark surfaces is what stops them reading as "default black". */
+  --color-paper: #f5f7fa;
+  --color-paper-2: #ffffff;
+  --color-ink: #07111f;
+  --color-ink-2: #0d1b2d;
+  --color-void: #050c17;
+  --color-stack: #0a1524;
+
+  /* Every fake browser/device frame on the site resolves here, so they stay
+     one shade instead of the five near-identical hexes they used to be. */
+  --color-device: #060e1a;
+
+  /* Case-study surfaces: Level7 runs warm, Invoomed runs cool and precise. */
+  --color-warm: #f7f6f3;
+  --color-warm-2: #eeece7;
+  --color-cool: #eef3fa;
+
+  /*
+    The brand blues.
+
+    `accent` is the electric blue — it is the fill colour, and it is correct
+    anywhere colour is decorative rather than read. It lands at ~4.2:1 on cloud
+    white, which is fine for a 3px dot and short of AA for an 11px mono label,
+    so `accent-ink` is the same blue taken down far enough to clear 4.5:1 and
+    is what carries *text* on light chapters. `accent-2` (sky) carries text on
+    dark chapters at ~8.7:1. `accent-3` (blue-violet) is gradient and glow
+    only — it never holds small text on either surface.
+
+    Nothing should reference these directly for text: use
+    `--accent-contextual`, which resolves to the right one per chapter.
+  */
+  --color-accent: #246bfd;
+  --color-accent-ink: #1b54d6;
+  --color-accent-2: #55b8ff;
+  --color-accent-3: #685cff;
+
+  --color-danger: #d13c36;
+
+  /* Type */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  --font-editorial: var(--font-instrument), Georgia, "Times New Roman", serif;
+
+  /* Motion */
+  --ease-darly: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+  Contextual surface tokens. `bg-background`, `border-border`, `text-foreground`
+  resolve against whichever chapter they sit in — this is what lets shared UI
+  (including the orbit component) drop into light or dark bands unmodified.
+*/
+@theme inline {
+  --color-background: var(--surface);
+  --color-foreground: var(--on-surface);
+  --color-border: var(--hairline);
+  --color-muted: var(--muted-fg);
+}
+
+:root {
+  --surface: #f5f7fa;
+  --on-surface: #07111f;
+  --hairline: color-mix(in oklab, #07111f 13%, transparent);
+  --hairline-strong: color-mix(in oklab, #07111f 28%, transparent);
+  /* Held at a mix that clears 4.5:1 on both light surfaces. */
+  --muted-fg: color-mix(in oklab, #07111f 65%, transparent);
+
+  /* Text accent for this chapter. Deepened electric blue — the pure #246bfd
+     is a touch short of AA against cloud white at label sizes. */
+  --accent-contextual: var(--color-accent-ink);
+
+  --gradient-signature: linear-gradient(
+    100deg,
+    var(--color-accent),
+    var(--color-accent-3)
+  );
+
+  /* Ambient colour washes. Light chapters get a fraction of the intensity —
+     the same alpha that reads as a glow on midnight reads as a stain on
+     cloud white. */
+  --glow-accent: rgba(36, 107, 253, 0.13);
+  --glow-sky: rgba(85, 184, 255, 0.14);
+  --glow-violet: rgba(104, 92, 255, 0.12);
+}
+
+/* Any dark chapter; children inherit the inverted token set. */
+.on-dark {
+  --surface: #07111f;
+  --on-surface: #f5f7fa;
+  --hairline: color-mix(in oklab, #f5f7fa 15%, transparent);
+  --hairline-strong: color-mix(in oklab, #f5f7fa 32%, transparent);
+  --muted-fg: color-mix(in oklab, #f5f7fa 62%, transparent);
+  --accent-contextual: var(--color-accent-2);
+  --gradient-signature: linear-gradient(
+    100deg,
+    var(--color-accent-2),
+    var(--color-accent-3)
+  );
+  --glow-accent: rgba(36, 107, 253, 0.34);
+  --glow-sky: rgba(85, 184, 255, 0.22);
+  --glow-violet: rgba(104, 92, 255, 0.26);
+}
+
+/* ------------------------------------------------------------------
+   Base
+------------------------------------------------------------------ */
+
+@layer base {
+  * {
+    border-color: var(--hairline);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    /* Nothing on this page may push the viewport sideways. */
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-contextual);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* The custom cursor hides the native one — but only once JS has mounted it,
+     so a failed hydration never leaves the user without a pointer. */
+  body[data-cursor="on"],
+  body[data-cursor="on"] * {
+    cursor: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Layout + typography primitives
+------------------------------------------------------------------ */
+
+@layer components {
+  .shell {
+    width: 100%;
+    max-width: 1600px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 3.2vw, 4rem);
+  }
+
+  /* Denser column for reading-width blocks inside a wide shell. */
+  .shell-tight {
+    width: 100%;
+    max-width: 1320px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 3.2vw, 4rem);
+  }
+
+  /* Standard section rhythm — roughly py-20 → py-28 on desktop. */
+  .section-y {
+    padding-block: clamp(3.5rem, 6vw, 7rem);
+  }
+
+  .section-y-sm {
+    padding-block: clamp(2.5rem, 4vw, 4.5rem);
+  }
+
+  .t-hero {
+    font-size: clamp(2.625rem, 6vw, 5.5rem);
+    line-height: 0.94;
+    letter-spacing: -0.042em;
+    font-weight: 500;
+  }
+
+  /* Centred section headline, used where the composition is symmetrical. */
+  .t-display-lg {
+    font-size: clamp(3rem, 6.8vw, 8rem);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    font-weight: 500;
+  }
+
+  .t-display {
+    font-size: clamp(2.125rem, 4.6vw, 4.5rem);
+    line-height: 0.98;
+    letter-spacing: -0.038em;
+    font-weight: 500;
+  }
+
+  .t-h2 {
+    font-size: clamp(1.875rem, 3.6vw, 3.5rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    font-weight: 500;
+  }
+
+  .t-h3 {
+    font-size: clamp(1.25rem, 1.9vw, 1.75rem);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    font-weight: 500;
+  }
+
+  /* 17 → 22px */
+  .t-lead {
+    font-size: clamp(1.0625rem, 1.25vw, 1.375rem);
+    line-height: 1.5;
+    letter-spacing: -0.012em;
+    color: var(--muted-fg);
+  }
+
+  /* 16 → 18px */
+  .t-body {
+    font-size: clamp(1rem, 1.05vw, 1.125rem);
+    line-height: 1.6;
+    color: var(--muted-fg);
+  }
+
+  /* Mono eyebrow / index label — the connective tissue of the page. */
+  .t-label {
+    font-family: var(--font-mono);
+    font-size: clamp(0.6875rem, 0.75vw, 0.8125rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1;
+    font-weight: 500;
+  }
+
+  .t-label-sm {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .t-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .editorial {
+    font-family: var(--font-editorial);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+  }
+
+  /* Small pill used for capability tags across work + services. */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--hairline);
+    border-radius: 2px;
+    padding: 0.375rem 0.625rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--muted-fg);
+    white-space: nowrap;
+  }
+}
+
+@layer utilities {
+  .dot-accent {
+    color: var(--accent-contextual);
+  }
+
+  /*
+    The signature gradient poured into type. Needs its own colour reset —
+    `text-transparent` alone leaves the fill to the browser on some engines,
+    and `background-clip` must be set unprefixed *and* prefixed for WebKit.
+  */
+  .text-gradient {
+    background-image: var(--gradient-signature);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* A hairline that carries the gradient instead of a flat tint. */
+  .rule-gradient {
+    background-image: var(--gradient-signature);
+    opacity: 0.55;
+  }
+
+  .mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  }
+
+  /* Radial fade for the structural grid so it never reaches a hard edge. */
+  .mask-radial {
+    -webkit-mask-image: radial-gradient(
+      ellipse 75% 60% at 50% 40%,
+      #000 30%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(
+      ellipse 75% 60% at 50% 40%,
+      #000 30%,
+      transparent 100%
+    );
+  }
+
+  .mask-fade-r {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 6%,
+      #000 94%,
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 6%,
+      #000 94%,
+      transparent
+    );
+  }
+
+  /*
+    Film grain. One tiling SVG turbulence — no JS, no network request, no
+    animation. This is what stops large flat gradients from banding and
+    reading cheap; without it a dark hero looks like a CSS gradient, with it
+    it looks printed.
+  */
+  .bg-grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+  }
+
+  /* Wide column guides — the structural grid an enterprise deck is set on.
+     Deliberately not a dot field; dots read as 2021 SaaS. */
+  .col-rules {
+    background-image: linear-gradient(
+      to right,
+      var(--hairline) 1px,
+      transparent 1px
+    );
+    background-size: 12.5% 100%;
+  }
+
+  /*
+    Hero backdrop grid. Same visual language as `.col-rules` but two-axis and
+    on a fixed pixel pitch rather than a percentage.
+
+    The pitch being fixed is load-bearing, not a style choice: the cursor lens
+    paints a second copy of this grid on a much larger element, and the two
+    lattices have to land on exactly the same lines or the base grid shows
+    through the lens as a permanent double image. A percentage pitch resolves
+    differently per element width, so it cannot align.
+  */
+  .grid-hero {
+    background-image:
+      linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
+    background-size: var(--grid-pitch, 96px) var(--grid-pitch, 96px);
+  }
+
+  /* Faint technical grid used behind the stack + CTA chapters. */
+  .grid-lines {
+    background-image:
+      linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
+    background-size: 72px 72px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Marquee (CSS-driven — cheaper and smoother than a JS loop)
+------------------------------------------------------------------ */
+
+@keyframes darly-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: darly-marquee var(--marquee-duration, 40s) linear infinite;
+  /* Nudged by scroll velocity from JS. */
+  animation-play-state: running;
+}
+
+.marquee-track[data-direction="right"] {
+  animation-direction: reverse;
+}
+
+/* ------------------------------------------------------------------
+   Availability pulse
+
+   Runs for the entire life of the page inside the most performance-sensitive
+   section, so it is CSS rather than JS and touches only `transform` and
+   `opacity` on a 7px element.
+------------------------------------------------------------------ */
+
+@keyframes darly-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  70%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.pulse-dot {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--accent-contextual);
+}
+
+/*
+  The ring is a pseudo-element resting at `opacity: 0`, and that resting state
+  is the whole point. The reduced-motion block below forces
+  `animation-duration: .001ms` on `*::after`; with `animation-fill-mode: none`
+  the element then snaps back to its base rule. Resting invisible means a
+  reduced-motion visitor gets a clean solid dot. Written the other way round —
+  visible at rest, animating outward — they would be left with a permanent
+  20px halo frozen around it.
+*/
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent-contextual);
+  opacity: 0;
+  animation: darly-pulse-ring 2.4s var(--ease-darly) infinite;
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion — strip anything decorative, keep the page usable
+------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .marquee-track {
+    animation: none !important;
+  }
+}

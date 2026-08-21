@@ -67,11 +67,37 @@ export function textToHtml(text: string): string {
 }
 
 /**
+ * Errors worth one retry: a network-level hiccup between this process and
+ * Hostinger, not a rejection of the mail itself. Retrying an auth failure or a
+ * malformed address would just waste the visitor's wait — those are excluded.
+ */
+const TRANSIENT_CODES = new Set([
+  "ETIMEDOUT",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ESOCKET",
+  "EDNS",
+  "EAI_AGAIN",
+]);
+
+function isTransient(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return typeof code === "string" && TRANSIENT_CODES.has(code);
+}
+
+/**
  * Sends to the inbox and nowhere else.
  *
  * `from` must be the authenticated mailbox — Hostinger rejects a mismatched
  * envelope sender, and SPF/DMARC would fail even if it did not. The visitor's
  * address rides on `replyTo`, so hitting Reply in the client works.
+ *
+ * One retry on a transient network error, with a short pause. A single dropped
+ * packet or a momentary DNS blip between this server and Hostinger otherwise
+ * turns into "your message couldn't be sent" for something that would have
+ * gone through half a second later. Anything else — bad credentials, a
+ * rejected sender, a malformed address — fails immediately; retrying those
+ * would just make the visitor wait longer for the same outcome.
  */
 export async function sendToInbox(options: {
   subject: string;
@@ -80,12 +106,25 @@ export async function sendToInbox(options: {
 }): Promise<void> {
   const user = env("SMTP_USER");
 
-  await getTransport().sendMail({
+  const message = {
     from: `"Darly site" <${user}>`,
     to: env("CONTACT_TO"),
     replyTo: options.replyTo,
     subject: options.subject,
     text: options.text,
     html: textToHtml(options.text),
-  });
+  };
+
+  try {
+    await getTransport().sendMail(message);
+  } catch (error) {
+    if (!isTransient(error)) throw error;
+
+    console.warn("[mail] transient send failure, retrying once", error);
+    // A connection-level failure may mean the cached transport is holding a
+    // socket in a bad state — rebuild it rather than reuse whatever broke.
+    transporter = null;
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await getTransport().sendMail(message);
+  }
 }

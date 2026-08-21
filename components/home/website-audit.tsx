@@ -4,12 +4,14 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { AuditRequestModal } from "@/components/home/audit-request-modal";
 import { Reveal } from "@/components/ui/reveal";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { auditChecks } from "@/lib/content";
 import { DUR, EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { normaliseUrl } from "@/lib/validation";
 
 /**
  * Free website audit.
@@ -18,10 +20,12 @@ import { cn } from "@/lib/utils";
  * sits on the left, and the right is a self-contained diagnostic panel with its
  * own chrome, input, and check readout.
  *
- * IMPORTANT: there is no audit backend yet. Rather than inventing scores —
- * a lie told to a prospect on their first interaction — the flow runs its real
- * connecting/reading/analysing states and stops at an honest hand-off. Point
- * this at the real endpoint when it exists.
+ * The connecting/reading/analysing sequence is presentation, not measurement —
+ * nothing is fetched from the visitor's site. What it does do is capture a real
+ * request: when the sequence finishes, a dialog asks where to send the findings
+ * and posts the URL and address to `/api/audit`. The audit itself is then run by
+ * a person, which is the only honest version of this until there is a service
+ * behind it.
  */
 
 const PHASES = [
@@ -38,8 +42,18 @@ export function WebsiteAudit() {
   const [status, setStatus] = useState<Status>("idle");
   const [phase, setPhase] = useState(-1);
   const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  /** The validated URL the run is about — held so the dialog can name it. */
+  const [target, setTarget] = useState<URL | null>(null);
   const timers = useRef<number[]>([]);
   const reduced = useReducedMotion();
+
+  // Stamped in an effect: a ref initialiser runs during render, where
+  // `Date.now()` is impure and would differ between server and client.
+  const mountedAt = useRef(0);
+  useEffect(() => {
+    mountedAt.current = Date.now();
+  }, []);
 
   useEffect(
     () => () => {
@@ -48,29 +62,20 @@ export function WebsiteAudit() {
     [],
   );
 
-  const normalise = (raw: string) => {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    try {
-      const url = new URL(withProtocol);
-      return /\./.test(url.hostname) ? url : null;
-    } catch {
-      return null;
-    }
-  };
-
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (status === "running") return;
 
-    const url = normalise(value);
+    // Same normaliser the route runs, so anything accepted here is accepted
+    // there.
+    const url = normaliseUrl(value);
     if (!url) {
       setError("Enter a website address, for example yourcompany.com");
       return;
     }
 
     setError(null);
+    setTarget(url);
     setStatus("running");
     setPhase(0);
 
@@ -80,7 +85,13 @@ export function WebsiteAudit() {
       window.setTimeout(() => setPhase(i + 1), step * (i + 1)),
     );
     timers.current.push(
-      window.setTimeout(() => setStatus("done"), step * PHASES.length),
+      window.setTimeout(() => {
+        setStatus("done");
+        // Asking for the address here rather than on submit: the sequence is
+        // what earns the request, so it has to finish first. Reduced motion
+        // runs the same path in 480ms.
+        setModalOpen(true);
+      }, step * PHASES.length),
     );
   };
 
@@ -186,7 +197,9 @@ export function WebsiteAudit() {
                     onChange={(event) => {
                       setValue(event.target.value);
                       if (error) setError(null);
-                      if (running) reset();
+                      // Not while the dialog is open — tearing down the run
+                      // would pull the URL out from under it.
+                      if (running && !modalOpen) reset();
                     }}
                     aria-invalid={Boolean(error)}
                     aria-describedby={error ? "audit-error" : undefined}
@@ -304,19 +317,24 @@ export function WebsiteAudit() {
                         transition={{ duration: DUR.base, ease: EASE }}
                       >
                         <p className="text-[0.9375rem] font-medium tracking-[-0.01em]">
-                          Audit request ready.
+                          Analysis complete.
                         </p>
                         <p className="t-body mt-1.5 text-[0.875rem]">
-                          This panel isn&apos;t connected to an audit service yet, so
-                          no results were generated. Wire it to the audit API — or{" "}
-                          <a
-                            href="mailto:hello@darly.agency"
-                            className="font-medium text-[var(--accent-contextual)] underline underline-offset-4"
-                          >
-                            send us the URL
-                          </a>{" "}
-                          and we&apos;ll run it manually.
+                          Tell us where to send the findings and we&apos;ll have them
+                          with you within two working days.
                         </p>
+                        {/* The recovery path. Without it, dismissing the dialog
+                            strands the visitor at a finished run with nothing
+                            left to press. */}
+                        <button
+                          type="button"
+                          onClick={() => setModalOpen(true)}
+                          data-cursor="start"
+                          className="mt-3 inline-flex items-center gap-2 rounded-[3px] bg-ink px-4 py-2.5 text-[0.875rem] font-medium text-paper transition-colors duration-300 hover:bg-accent"
+                        >
+                          Send me the audit
+                          <ArrowUpRight className="size-4" strokeWidth={1.75} />
+                        </button>
                       </motion.div>
                     )}
                   </motion.div>
@@ -326,6 +344,15 @@ export function WebsiteAudit() {
           </Reveal>
         </div>
       </div>
+
+      {target && (
+        <AuditRequestModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          url={target}
+          elapsedMs={() => Date.now() - mountedAt.current}
+        />
+      )}
     </section>
   );
 }

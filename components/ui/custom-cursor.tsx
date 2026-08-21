@@ -27,6 +27,8 @@ export function CustomCursor() {
   const [state, setState] = useState<CursorState>("default");
   const [visible, setVisible] = useState(false);
   const [onDark, setOnDark] = useState(false);
+  /** Over a dialog or the cookie card, where the native cursor is showing. */
+  const [suppressed, setSuppressed] = useState(false);
 
   const x = useMotionValue(-100);
   const y = useMotionValue(-100);
@@ -38,7 +40,20 @@ export function CustomCursor() {
   const lastSample = useRef(0);
 
   useEffect(() => {
-    const fine = window.matchMedia("(pointer: fine)");
+    /*
+      The width clause is load-bearing, not decoration.
+
+      This used to gate on `(pointer: fine)` alone while the element that draws
+      the pointer was `hidden lg:block`. Between 768px and 1023px with a mouse —
+      every tablet-width window and every half-screen desktop browser — the
+      native cursor was hidden site-wide and nothing replaced it, so there was
+      no pointer at all. Matching the JS gate to the CSS one means
+      `data-cursor="on"` now only ever exists when something is actually drawn.
+
+      1024px is Tailwind's `lg`. If a breakpoint is ever customised in
+      `@theme`, this has to move with it.
+    */
+    const fine = window.matchMedia("(pointer: fine) and (min-width: 1024px)");
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
     const evaluate = () => setEnabled(fine.matches && !calm.matches);
 
@@ -106,6 +121,12 @@ export function CustomCursor() {
       const hit = target?.closest?.("[data-cursor]");
       const value = hit?.getAttribute("data-cursor") as CursorState | undefined;
       setState(value ?? "default");
+
+      // Over a surface that has taken the native cursor back, stand down —
+      // otherwise there are two pointers, and the drawn one ghosts visibly
+      // through a translucent card. `pointerover` fires again on the way out,
+      // so this self-corrects.
+      setSuppressed(Boolean(target?.closest?.("[data-native-cursor]")));
     };
 
     const onLeave = () => setVisible(false);
@@ -130,9 +151,13 @@ export function CustomCursor() {
   const label = LABELS[state];
   const isDisc = Boolean(label);
   const ink = onDark ? "#f5f7fa" : "#07111f";
+  /** Nothing is drawn while the native cursor has the floor. */
+  const shown = visible && !suppressed;
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-[150] hidden lg:block">
+    // No `hidden lg:block` — the enable gate now carries the width condition,
+    // so if this renders at all it is meant to be seen.
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-[150]">
       {/* precise dot */}
       <motion.div
         className="absolute left-0 top-0 rounded-full"
@@ -140,7 +165,7 @@ export function CustomCursor() {
         animate={{
           width: isDisc ? 0 : 8,
           height: isDisc ? 0 : 8,
-          opacity: visible && !isDisc ? 1 : 0,
+          opacity: shown && !isDisc ? 1 : 0,
           backgroundColor: ink,
         }}
         transition={{ duration: 0.25, ease: EASE }}
@@ -153,7 +178,7 @@ export function CustomCursor() {
         animate={{
           width: state === "link" ? 44 : 20,
           height: state === "link" ? 44 : 20,
-          opacity: visible && state === "link" ? 1 : 0,
+          opacity: shown && state === "link" ? 1 : 0,
           borderColor: ink,
         }}
         transition={{ duration: 0.3, ease: EASE }}
@@ -161,7 +186,7 @@ export function CustomCursor() {
 
       {/* labelled disc over media and actions */}
       <AnimatePresence>
-        {isDisc && visible && (
+        {isDisc && shown && (
           <motion.div
             className="absolute left-0 top-0 flex items-center justify-center rounded-full bg-accent"
             style={{ x: discX, y: discY, translateX: "-50%", translateY: "-50%" }}

@@ -8,13 +8,14 @@ import { Reveal } from "@/components/ui/reveal";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { site, social } from "@/lib/content";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/contact",
   title: "Contact",
   description:
     "Tell us what you're working on and we'll tell you how we'd approach it. Darly — hello@darly.agency.",
-  alternates: { canonical: "/contact" },
-};
+});
 
 const STEPS = [
   {

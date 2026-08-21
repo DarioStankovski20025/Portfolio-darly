@@ -153,6 +153,37 @@
   body[data-cursor="on"] * {
     cursor: none;
   }
+
+  /*
+    Overlays that paint above the drawn cursor hand the native one back.
+
+    The cookie card sits at z-160 and dialogs at z-170; the custom cursor is at
+    z-150, so it disappears underneath both and you are left clicking blind.
+
+    The specificity here is deliberate, not incidental. The rule above is
+    (0,1,1) and applies to every descendant, so a single utility class on the
+    card is not enough — the class would style the card itself while every
+    child still matched `body[data-cursor="on"] *`, and an explicit `none` on a
+    child beats an inherited `auto` from its parent. These are (0,2,1) and
+    (0,2,2), and later in the same layer, so they win on either tiebreak.
+  */
+  body[data-cursor="on"] [data-native-cursor],
+  body[data-cursor="on"] [data-native-cursor] * {
+    cursor: auto;
+  }
+
+  body[data-cursor="on"] [data-native-cursor] a,
+  body[data-cursor="on"] [data-native-cursor] button,
+  body[data-cursor="on"] [data-native-cursor] [role="button"],
+  body[data-cursor="on"] [data-native-cursor] label {
+    cursor: pointer;
+  }
+
+  /* A pointing hand over a text field is wrong, and dialogs have text fields. */
+  body[data-cursor="on"] [data-native-cursor] input,
+  body[data-cursor="on"] [data-native-cursor] textarea {
+    cursor: text;
+  }
 }
 
 /* ------------------------------------------------------------------

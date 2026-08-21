@@ -12,20 +12,14 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { stackGroups } from "@/lib/content";
 import { engagements } from "@/lib/services";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/services",
   title: "Services",
   description:
     "AI products, web applications, SaaS platforms, high-end websites and custom software — designed and engineered by one senior team.",
-  alternates: { canonical: "/services" },
-  openGraph: {
-    title: "Services — Darly",
-    description:
-      "AI products, web applications, SaaS platforms, high-end websites and custom software — designed and engineered by one senior team.",
-    url: "/services",
-    type: "website",
-  },
-};
+});
 
 /**
  * Services.

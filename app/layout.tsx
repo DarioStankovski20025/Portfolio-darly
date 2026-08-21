@@ -48,18 +48,25 @@ export const metadata: Metadata = {
   authors: [{ name: site.name, url: site.url }],
   creator: site.name,
   alternates: { canonical: "/" },
+  /*
+    Deliberately thin. `url`, `title` and `description` used to live here, and
+    because `openGraph` is inherited wholesale by any route that doesn't declare
+    its own, /about, /contact and /case-studies all shipped `og:url` pointing at
+    the home page. Each route now supplies its own via `pageMetadata`.
+  */
   openGraph: {
     type: "website",
-    url: site.url,
     siteName: site.name,
-    title: "Darly — Digital Design & Development Agency",
-    description: site.description,
     locale: "en_GB",
   },
+  /*
+    Card type only. Next fills twitter's title/description/images from the
+    resolved openGraph — but only when twitter hasn't already set them, and
+    hardcoding them here meant that never happened on any route. Leave them out
+    and all eight routes get correct cards for free.
+  */
   twitter: {
     card: "summary_large_image",
-    title: "Darly — Digital Design & Development Agency",
-    description: site.description,
   },
   robots: {
     index: true,

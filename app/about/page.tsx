@@ -10,13 +10,14 @@ import { Reveal } from "@/components/ui/reveal";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { reasons, stackGroups } from "@/lib/content";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/about",
   title: "About Us",
   description:
     "Darly is an AI, design and development agency. Strategy, design and engineering stay together instead of being split between vendors.",
-  alternates: { canonical: "/about" },
-};
+});
 
 const HOW_WE_WORK = [
   {

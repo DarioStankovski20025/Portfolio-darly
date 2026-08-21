@@ -66,7 +66,14 @@ export function CookieConsent() {
           exit={reduced ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: reduced ? 0.2 : 0.5, ease: EASE }}
         >
-          <div className="rounded-[12px] border border-[var(--hairline)] bg-paper-2/95 p-[clamp(1.1rem,2vw,1.4rem)] shadow-[0_30px_70px_-30px_rgba(7,17,31,0.28)] backdrop-blur-md">
+          {/* This card paints above the custom cursor, which would otherwise
+              vanish underneath it. `data-native-cursor` hands the OS pointer
+              back here and tells the drawn one to stand down — see the rule in
+              globals.css and the suppression in custom-cursor.tsx. */}
+          <div
+            data-native-cursor
+            className="rounded-[12px] border border-[var(--hairline)] bg-paper-2/95 p-[clamp(1.1rem,2vw,1.4rem)] shadow-[0_30px_70px_-30px_rgba(7,17,31,0.28)] backdrop-blur-md"
+          >
             <p id="cookie-title" className="t-label text-[var(--accent-contextual)]">
               Cookies
             </p>

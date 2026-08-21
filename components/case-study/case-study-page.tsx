@@ -5,6 +5,7 @@ import { Footer } from "@/components/home/footer";
 import { Navbar } from "@/components/home/navbar";
 import { SectionNav } from "@/components/ui/section-nav";
 import { heroTheme, type CaseStudy } from "@/lib/case-studies";
+import { site } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,8 +22,42 @@ export function CaseStudyPage({ study }: { study: CaseStudy }) {
     label: chapter.label,
   }));
 
+  /*
+    Breadcrumbs, on the case studies only.
+
+    Google renders a breadcrumb trail in mobile results for three-level paths,
+    which is what these are. The one-level pages (/about, /services, /contact)
+    would only ever produce "Home › About" and earn nothing, so they don't get
+    one.
+  */
+  const breadcrumbs = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: site.url },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Case Studies",
+        item: `${site.url}/case-studies`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: study.name,
+        item: `${site.url}/case-studies/${study.slug}`,
+      },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        // Static, author-controlled structured data.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbs) }}
+      />
+
       <Navbar />
 
       <main id="main">

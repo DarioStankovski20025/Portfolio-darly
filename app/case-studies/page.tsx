@@ -10,13 +10,14 @@ import { Reveal } from "@/components/ui/reveal";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { caseStudyList } from "@/lib/case-studies";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/case-studies",
   title: "Case Studies",
   description:
     "Platforms, SaaS products and digital systems designed and developed by Darly — Optiora, Level7 and Invoomed.",
-  alternates: { canonical: "/case-studies" },
-};
+});
 
 export default function CaseStudiesIndex() {
   return (

@@ -1,13 +1,13 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, Check } from "lucide-react";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { Field } from "@/components/ui/field";
 import { site } from "@/lib/content";
 import {
   EUR,
-  MIN_BUDGET,
   detectCurrency,
   formatAmount,
   parseAmount,
@@ -15,47 +15,48 @@ import {
 } from "@/lib/currency";
 import { DUR, EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { NEEDS, validateContact, type ContactFields } from "@/lib/validation";
 
 /**
  * Enquiry form.
  *
- * NO BACKEND IS CONNECTED. Submitting does not send anything anywhere — the
- * form validates, then hands the visitor a prefilled mailto so the message
- * still reaches Darly. Point `onSubmit` at a real endpoint (or a server action)
- * and delete the mailto fallback when one exists. Pretending to have sent a
- * message that vanished would be the worst possible first impression.
+ * Posts to `/api/contact`, which sends the message over SMTP and awaits the
+ * result before answering — so "sent" here means a mail server accepted it, not
+ * that a request left the browser. Validation comes from `lib/validation.ts`,
+ * the same module the route runs, so the two can't drift apart.
+ *
+ * The `mailto:` handoff that used to be the whole submit path survives only as
+ * a fallback, and only after a send has genuinely failed. Offering it up front
+ * would push people into their mail client for no reason; hiding it after a
+ * failure would lose the message.
  */
 
-const NEEDS = [
-  "AI product",
-  "Web application",
-  "SaaS platform",
-  "Website",
-  "Custom software",
-  "Automation",
-];
+const EMPTY: ContactFields = { name: "", email: "", company: "", budget: "", message: "" };
 
-type Fields = {
-  name: string;
-  email: string;
-  company: string;
-  budget: string;
-  message: string;
-};
-
-const EMPTY: Fields = { name: "", email: "", company: "", budget: "", message: "" };
+type Status = "idle" | "sending" | "sent" | "error";
 
 export function ContactForm() {
-  const [fields, setFields] = useState<Fields>(EMPTY);
+  const [fields, setFields] = useState<ContactFields>(EMPTY);
   const [needs, setNeeds] = useState<string[]>([]);
-  const [errors, setErrors] = useState<Partial<Record<keyof Fields, string>>>({});
-  const [sent, setSent] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof ContactFields, string>>>({});
+  const [status, setStatus] = useState<Status>("idle");
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [trap, setTrap] = useState("");
+  const reduced = useReducedMotion();
+
   // The server has no region to read, so it renders the EUR default and the
   // client swaps in the visitor's own on hydration — no effect, no cascading
   // render, no hydration mismatch.
   const currency = useSyncExternalStore(subscribeToCurrency, detectCurrency, () => EUR);
 
-  const budgetValue = parseAmount(fields.budget);
+  // Stamped in an effect, not in the ref initialiser: an initialiser runs
+  // during render, and calling `Date.now()` there is both impure and a
+  // guaranteed hydration mismatch. Only ever read inside handlers.
+  const mountedAt = useRef(0);
+  useEffect(() => {
+    mountedAt.current = Date.now();
+  }, []);
+
   const setBudget = (raw: string) => {
     const amount = parseAmount(raw);
     setFields((f) => ({ ...f, budget: amount === null ? "" : formatAmount(amount, currency) }));
@@ -72,7 +73,7 @@ export function ContactForm() {
     return checks.filter(Boolean).length / checks.length;
   }, [fields, needs]);
 
-  const set = (key: keyof Fields, value: string) => {
+  const set = (key: keyof ContactFields, value: string) => {
     setFields((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
@@ -82,27 +83,8 @@ export function ContactForm() {
       current.includes(need) ? current.filter((n) => n !== need) : [...current, need],
     );
 
-  const onSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const next: Partial<Record<keyof Fields, string>> = {};
-    if (fields.name.trim().length < 2) next.name = "Tell us who you are";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email))
-      next.email = "We need a valid email to reply";
-    if (fields.message.trim().length < 10)
-      next.message = "A sentence or two about the project is plenty";
-    // Below this we are not the right team, and saying so up front is kinder
-    // than a reply two days later.
-    if (budgetValue !== null && budgetValue < MIN_BUDGET)
-      next.budget = `We don't take on projects under ${currency.symbol}${formatAmount(MIN_BUDGET, currency)}`;
-
-    if (Object.keys(next).length) {
-      setErrors(next);
-      return;
-    }
-
-    // No endpoint yet — hand the message to the visitor's mail client rather
-    // than swallowing it.
+  /** The last-resort handoff, built once and used only after a real failure. */
+  const mailtoHref = useMemo(() => {
     const body = [
       `Name: ${fields.name}`,
       `Company: ${fields.company || "—"}`,
@@ -112,13 +94,73 @@ export function ContactForm() {
       fields.message,
     ].join("\n");
 
-    const href = `mailto:${site.email}?subject=${encodeURIComponent(
+    return `mailto:${site.email}?subject=${encodeURIComponent(
       `New project enquiry — ${fields.company || fields.name}`,
     )}&body=${encodeURIComponent(body)}`;
+  }, [fields, needs, currency]);
 
-    setSent(true);
-    window.location.href = href;
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (status === "sending") return;
+
+    const payload = {
+      ...fields,
+      budgetCurrency: currency.code,
+      needs,
+      elapsedMs: Date.now() - mountedAt.current,
+      company_url: trap,
+    };
+
+    // The same function the route runs. If it passes here it passes there,
+    // barring a hand-crafted request.
+    const check = validateContact(payload);
+    if (!check.ok) {
+      setErrors(check.errors);
+      return;
+    }
+
+    setStatus("sending");
+    setServerError(null);
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await response.json().catch(() => null);
+
+      // Strict. Anything that is not an explicit success falls through to the
+      // error branch — a network hiccup must never read as "message sent".
+      if (response.ok && json?.ok === true) {
+        setStatus("sent");
+        return;
+      }
+
+      if (response.status === 400 && json?.errors) {
+        setErrors(json.errors);
+        setStatus("idle");
+        return;
+      }
+
+      setStatus("error");
+      setServerError(json?.message ?? "Something went wrong on our end.");
+    } catch {
+      setStatus("error");
+      setServerError("We couldn't reach the server. Check your connection.");
+    }
   };
+
+  const reset = () => {
+    setFields(EMPTY);
+    setNeeds([]);
+    setErrors({});
+    setServerError(null);
+    setStatus("idle");
+    mountedAt.current = Date.now();
+  };
+
+  const sending = status === "sending";
 
   return (
     <div className="relative overflow-hidden rounded-[10px] border border-[var(--hairline)] bg-[var(--surface)] shadow-[0_50px_110px_-70px_rgba(7,11,15,0.45)]">
@@ -134,7 +176,7 @@ export function ContactForm() {
       </div>
 
       <AnimatePresence mode="wait">
-        {sent ? (
+        {status === "sent" ? (
           <motion.div
             key="sent"
             className="flex min-h-[420px] flex-col items-start justify-center gap-5 p-[clamp(1.5rem,3vw,3rem)]"
@@ -152,10 +194,10 @@ export function ContactForm() {
               <Check className="size-6" strokeWidth={2} />
             </motion.span>
 
-            <h3 className="t-h3">Your message is ready to send.</h3>
+            <h3 className="t-h3">Message sent.</h3>
             <p className="t-body max-w-[46ch]">
-              We&apos;ve opened your email client with the details filled in — send it
-              and it reaches us directly. If nothing opened, write to{" "}
+              It&apos;s with us. We reply within two working days — if you don&apos;t
+              hear back, write to{" "}
               <a
                 href={`mailto:${site.email}`}
                 className="font-medium text-[var(--accent-contextual)] underline underline-offset-4"
@@ -167,10 +209,10 @@ export function ContactForm() {
 
             <button
               type="button"
-              onClick={() => setSent(false)}
+              onClick={reset}
               className="t-label-sm mt-2 text-[var(--muted-fg)] underline underline-offset-4 transition-colors hover:text-[var(--accent-contextual)]"
             >
-              Edit the message
+              Send another message
             </button>
           </motion.div>
         ) : (
@@ -184,6 +226,24 @@ export function ContactForm() {
             exit={{ opacity: 0 }}
             transition={{ duration: DUR.base, ease: EASE }}
           >
+            {/*
+              Honeypot. Named `company_url` rather than `website` or `phone`
+              because browsers and password managers autofill those, which would
+              turn the trap into a silent black hole for real people. Positioned
+              off-screen rather than `display:none` — some bots skip fields that
+              never render.
+            */}
+            <input
+              type="text"
+              name="company_url"
+              value={trap}
+              onChange={(e) => setTrap(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden
+              className="absolute left-[-9999px] top-0 h-0 w-0 opacity-0"
+            />
+
             <div className="grid gap-[clamp(1.25rem,2vw,1.75rem)] sm:grid-cols-2">
               <Field
                 id="name"
@@ -192,6 +252,7 @@ export function ContactForm() {
                 onChange={(v) => set("name", v)}
                 error={errors.name}
                 autoComplete="name"
+                disabled={sending}
               />
               <Field
                 id="email"
@@ -201,6 +262,7 @@ export function ContactForm() {
                 onChange={(v) => set("email", v)}
                 error={errors.email}
                 autoComplete="email"
+                disabled={sending}
               />
               <Field
                 id="company"
@@ -209,6 +271,7 @@ export function ContactForm() {
                 value={fields.company}
                 onChange={(v) => set("company", v)}
                 autoComplete="organization"
+                disabled={sending}
               />
               <Field
                 id="budget"
@@ -219,11 +282,12 @@ export function ContactForm() {
                 value={fields.budget}
                 onChange={setBudget}
                 error={errors.budget}
+                disabled={sending}
               />
             </div>
 
             {/* what they need */}
-            <fieldset>
+            <fieldset disabled={sending}>
               <legend className="t-label-sm text-[var(--muted-fg)]">
                 What do you need? <span className="text-[var(--accent-contextual)]">Select any</span>
               </legend>
@@ -268,7 +332,33 @@ export function ContactForm() {
               onChange={(v) => set("message", v)}
               error={errors.message}
               multiline
+              disabled={sending}
             />
+
+            <AnimatePresence>
+              {status === "error" && serverError && (
+                <motion.div
+                  role="alert"
+                  className="rounded-[3px] border border-danger/40 bg-danger/5 px-4 py-3"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25, ease: EASE }}
+                >
+                  <p className="t-label-sm text-danger">{serverError}</p>
+                  <p className="t-body mt-1.5 text-[0.875rem]">
+                    Press send to try again — or, if it keeps failing,{" "}
+                    <a
+                      href={mailtoHref}
+                      className="font-medium text-[var(--accent-contextual)] underline underline-offset-4"
+                    >
+                      send it by email instead
+                    </a>
+                    .
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="flex flex-wrap items-center justify-between gap-5 border-t border-[var(--hairline)] pt-6">
               <p className="t-label-sm text-[var(--muted-fg)]">
@@ -278,135 +368,71 @@ export function ContactForm() {
               <button
                 type="submit"
                 data-cursor="start"
-                className="group relative flex min-h-12 items-center gap-3 overflow-hidden rounded-[3px] bg-ink px-7 py-3.5 text-[0.9375rem] font-medium text-paper transition-colors duration-300 hover:text-white"
+                disabled={sending}
+                aria-busy={sending}
+                // The width is pinned so swapping the label for "Sending" does
+                // not resize the button mid-submit.
+                className="group relative flex min-h-12 min-w-[11.5rem] items-center justify-center gap-3 overflow-hidden rounded-[3px] bg-ink px-7 py-3.5 text-[0.9375rem] font-medium text-paper transition-colors duration-300 hover:text-white disabled:cursor-default"
               >
-                <span
-                  aria-hidden
-                  className="absolute inset-0 -z-10 origin-bottom scale-y-0 bg-accent transition-transform duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-y-100 group-focus-visible:scale-y-100"
-                />
-                Send enquiry
-                <ArrowUpRight
-                  className="size-4 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  strokeWidth={1.75}
-                />
+                {!sending && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 -z-10 origin-bottom scale-y-0 bg-accent transition-transform duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-y-100 group-focus-visible:scale-y-100"
+                  />
+                )}
+
+                <AnimatePresence mode="wait" initial={false}>
+                  {sending ? (
+                    <motion.span
+                      key="sending"
+                      className="flex items-center gap-1"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      Sending
+                      {reduced ? (
+                        <span aria-hidden>…</span>
+                      ) : (
+                        <span aria-hidden className="flex gap-0.5">
+                          {[0, 1, 2].map((i) => (
+                            <motion.span
+                              key={i}
+                              animate={{ opacity: [0.25, 1, 0.25] }}
+                              transition={{
+                                duration: 0.9,
+                                repeat: Infinity,
+                                delay: i * 0.15,
+                                ease: "easeInOut",
+                              }}
+                            >
+                              .
+                            </motion.span>
+                          ))}
+                        </span>
+                      )}
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="send"
+                      className="flex items-center gap-3"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      Send enquiry
+                      <ArrowUpRight
+                        className="size-4 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                        strokeWidth={1.75}
+                      />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </button>
             </div>
           </motion.form>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------
-   Fields — label floats, underline draws in on focus
------------------------------------------------------------------- */
-
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-  error,
-  type = "text",
-  multiline,
-  optional,
-  autoComplete,
-  inputMode,
-  prefix,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  error?: string;
-  type?: string;
-  multiline?: boolean;
-  optional?: boolean;
-  autoComplete?: string;
-  inputMode?: "numeric" | "url" | "text";
-  /** Currency symbol shown inside the field, e.g. "€". */
-  prefix?: string;
-}) {
-  const [focused, setFocused] = useState(false);
-  const active = focused || value.length > 0;
-
-  const shared = {
-    id,
-    name: id,
-    value,
-    autoComplete,
-    inputMode,
-    "aria-invalid": Boolean(error),
-    "aria-describedby": error ? `${id}-error` : undefined,
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      onChange(e.target.value),
-    className: cn(
-      "peer w-full bg-transparent pb-3 pt-7 text-[clamp(1rem,1.2vw,1.125rem)] tracking-[-0.01em] outline-none",
-      multiline && "min-h-[132px] resize-y",
-      prefix && "pl-[1.35em]",
-    ),
-  };
-
-  return (
-    <div className={cn("relative", multiline && "sm:col-span-2")}>
-      <label
-        htmlFor={id}
-        className={cn(
-          "pointer-events-none absolute left-0 origin-left transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          active
-            ? "top-0 text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--muted-fg)]"
-            : "top-6 text-[clamp(1rem,1.2vw,1.125rem)] text-[var(--muted-fg)]",
-          !active && prefix && "left-[1.35em]",
-        )}
-        style={{ fontFamily: active ? "var(--font-mono)" : undefined }}
-      >
-        {label}
-        {optional && <span className="ml-2 normal-case opacity-60">optional</span>}
-      </label>
-
-      {prefix && (
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute bottom-3 left-0 text-[clamp(1rem,1.2vw,1.125rem)] transition-colors duration-300",
-            value ? "text-[var(--on-surface)]" : "text-[var(--muted-fg)]",
-          )}
-        >
-          {prefix}
-        </span>
-      )}
-
-      {multiline ? <textarea {...shared} rows={4} /> : <input {...shared} type={type} />}
-
-      {/* the rule that draws in under the active field */}
-      <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-[var(--hairline-strong)]" />
-      <motion.span
-        aria-hidden
-        className={cn(
-          "absolute inset-x-0 bottom-0 h-[2px] origin-left",
-          error ? "bg-danger" : "bg-accent",
-        )}
-        initial={false}
-        animate={{ scaleX: focused || error ? 1 : 0 }}
-        transition={{ duration: 0.3, ease: EASE }}
-      />
-
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            id={`${id}-error`}
-            role="alert"
-            className="t-label-sm mt-2.5 text-danger"
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease: EASE }}
-          >
-            {error}
-          </motion.p>
         )}
       </AnimatePresence>
     </div>

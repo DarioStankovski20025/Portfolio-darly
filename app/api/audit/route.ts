@@ -61,15 +61,17 @@ export async function POST(request: Request) {
   const lines = [
     `Website:   ${url.toString()}`,
     `Hostname:  ${url.hostname}`,
+    ...(audit.name ? [`Name:      ${audit.name}`] : []),
     `Email:     ${audit.email}`,
     `Submitted: ${new Date().toISOString()}`,
+    ...(audit.notes ? ["", "Notes:", audit.notes] : []),
     "",
     "Reply directly to this email to reach them.",
   ].join("\n");
 
   try {
     await sendToInbox({
-      subject: `Audit request — ${url.hostname}`,
+      subject: `Audit request — ${url.hostname}${audit.name ? ` (${audit.name})` : ""}`,
       text: lines,
       replyTo: audit.email,
     });

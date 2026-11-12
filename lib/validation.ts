@@ -39,6 +39,7 @@ const MAX = {
   message: 5000,
   needs: 12,
   url: 2048,
+  notes: 2000,
 } as const;
 
 export type ContactFields = {
@@ -62,6 +63,9 @@ export type ContactPayload = ContactFields & {
 export type AuditPayload = {
   url: string;
   email: string;
+  /** Optional on the home-page modal; the /audit page requires it client-side. */
+  name: string;
+  notes: string;
   elapsedMs: number;
   company_url: string;
 };
@@ -169,6 +173,8 @@ export function validateAudit(input: unknown): AuditResult {
   const value: AuditPayload = {
     url: str(source.url, MAX.url),
     email: str(source.email, MAX.email),
+    name: str(source.name, MAX.name),
+    notes: str(source.notes, MAX.notes),
     elapsedMs: num(source.elapsedMs),
     company_url: str(source.company_url, 200),
   };

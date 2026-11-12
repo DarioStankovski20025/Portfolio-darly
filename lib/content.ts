@@ -11,7 +11,7 @@ export const site = {
   wordmark: "darly",
   domain: "darly.agency",
   url: "https://darly.agency",
-  email: "hello@darly.agency",
+  email: "dario@darly.agency",
   description:
     "Darly designs and builds scalable websites, SaaS platforms and AI-powered software for companies that have outgrown templates, no-code tools and disconnected systems.",
 } as const;

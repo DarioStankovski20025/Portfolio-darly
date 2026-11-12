@@ -14,7 +14,6 @@ import {
   subscribeToCurrency,
 } from "@/lib/currency";
 import { DUR, EASE } from "@/lib/motion";
-import { cn } from "@/lib/utils";
 import { NEEDS, validateContact, type ContactFields } from "@/lib/validation";
 
 /**
@@ -35,9 +34,9 @@ const EMPTY: ContactFields = { name: "", email: "", company: "", budget: "", mes
 
 type Status = "idle" | "sending" | "sent" | "error";
 
-export function ContactForm() {
+export function ContactForm({initialService}: {initialService?: string}) {
   const [fields, setFields] = useState<ContactFields>(EMPTY);
-  const [needs, setNeeds] = useState<string[]>([]);
+  const [needs, setNeeds] = useState<string[]>(initialService && (NEEDS as readonly string[]).includes(initialService) ? [initialService] : []);
   const [errors, setErrors] = useState<Partial<Record<keyof ContactFields, string>>>({});
   const [status, setStatus] = useState<Status>("idle");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -77,11 +76,6 @@ export function ContactForm() {
     setFields((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
-
-  const toggleNeed = (need: string) =>
-    setNeeds((current) =>
-      current.includes(need) ? current.filter((n) => n !== need) : [...current, need],
-    );
 
   /** The last-resort handoff, built once and used only after a real failure. */
   const mailtoHref = useMemo(() => {
@@ -256,7 +250,7 @@ export function ContactForm() {
               />
               <Field
                 id="email"
-                label="Email"
+                label="Business email"
                 type="email"
                 value={fields.email}
                 onChange={(v) => set("email", v)}
@@ -289,45 +283,18 @@ export function ContactForm() {
             {/* what they need */}
             <fieldset disabled={sending}>
               <legend className="t-label-sm text-[var(--muted-fg)]">
-                What do you need? <span className="text-[var(--accent-contextual)]">Select any</span>
+                Service interested in
               </legend>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {NEEDS.map((need) => {
-                  const on = needs.includes(need);
-                  return (
-                    <button
-                      key={need}
-                      type="button"
-                      onClick={() => toggleNeed(need)}
-                      aria-pressed={on}
-                      className={cn(
-                        // The colour sits on the button itself. The previous
-                        // `-z-10` fill span painted behind an opaque ancestor,
-                        // which is why selection was invisible.
-                        "flex items-center gap-2 rounded-[3px] border px-4 py-2.5 text-[0.875rem] font-medium tracking-[-0.01em] transition-colors duration-200",
-                        on
-                          ? "border-ink bg-ink text-paper"
-                          : "border-[var(--hairline-strong)] text-[var(--muted-fg)] hover:border-[var(--on-surface)] hover:text-[var(--on-surface)]",
-                      )}
-                    >
-                      <Check
-                        aria-hidden
-                        className={cn(
-                          "size-3.5 transition-all duration-200",
-                          on ? "scale-100 opacity-100" : "w-0 scale-50 opacity-0",
-                        )}
-                        strokeWidth={2.5}
-                      />
-                      {need}
-                    </button>
-                  );
-                })}
-              </div>
+              <label htmlFor="project-service" className="sr-only">Service interested in</label>
+              <select id="project-service" value={needs[0] ?? ""} onChange={event => setNeeds(event.target.value ? [event.target.value] : [])} className="mt-4 min-h-12 w-full rounded-sm border border-slate-300 bg-slate-50 px-4 text-sm text-slate-800 focus:outline-2 focus:outline-blue-600">
+                <option value="">Select a service (optional)</option>
+                {NEEDS.map(need => <option value={need} key={need}>{need}</option>)}
+              </select>
             </fieldset>
 
             <Field
               id="message"
-              label="What are you building?"
+              label="What problem are you trying to solve?"
               value={fields.message}
               onChange={(v) => set("message", v)}
               error={errors.message}

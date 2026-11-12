@@ -1,3 +1,4 @@
+import {offers,groups} from "@/lib/offers";
 import type { MetadataRoute } from "next";
 
 import { caseStudyList } from "@/lib/case-studies";
@@ -18,6 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     { url: site.url, lastModified, changeFrequency: "monthly", priority: 1 },
+    ...[...offers,...groups].map(o=>({url:`${site.url}/services/${o.slug}`,lastModified})),
     ...nav.map((item) => ({
       url: `${site.url}${item.href}`,
       lastModified,

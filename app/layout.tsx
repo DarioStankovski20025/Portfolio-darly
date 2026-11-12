@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import Script from "next/script";
 
-import { Intro } from "@/components/providers/intro";
+
 import { CookieConsent } from "@/components/ui/cookie-consent";
-import { CustomCursor } from "@/components/ui/custom-cursor";
+
+import { GTM_ID, gtmBootstrap } from "@/lib/analytics";
 import { site } from "@/lib/content";
 
 import "./globals.css";
@@ -94,14 +96,26 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${instrument.variable} antialiased`}
     >
       <body className="min-h-svh">
+        {/* Google Tag Manager — consent defaults first, see lib/analytics.ts */}
+        <Script id="gtm-bootstrap" strategy="afterInteractive">
+          {gtmBootstrap}
+        </Script>
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+            height="0"
+            width="0"
+            style={{ display: "none", visibility: "hidden" }}
+          />
+        </noscript>
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[300] focus:rounded-[3px] focus:bg-ink focus:px-5 focus:py-3 focus:text-sm focus:text-paper"
         >
           Skip to content
         </a>
-        <CustomCursor />
-        <Intro>{children}</Intro>
+
+        {children}
         <CookieConsent />
       </body>
     </html>

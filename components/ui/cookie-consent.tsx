@@ -3,9 +3,8 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 
+import { CONSENT_STORAGE_KEY as STORAGE_KEY, setAnalyticsConsent } from "@/lib/analytics";
 import { EASE } from "@/lib/motion";
-
-const STORAGE_KEY = "darly.cookie-choice";
 
 /**
  * Cookie consent.
@@ -50,6 +49,7 @@ export function CookieConsent() {
     } catch {
       /* nothing we can do, and nothing worth breaking the UI over */
     }
+    setAnalyticsConsent(choice === "accepted");
     setOpen(false);
   };
 

@@ -20,14 +20,7 @@ import { EUR, GBP, USD } from "@/lib/currency";
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** The things people come to us for. Renders as the chip group on the form. */
-export const NEEDS = [
-  "AI product",
-  "Web application",
-  "SaaS platform",
-  "Website",
-  "Custom software",
-  "Automation",
-] as const;
+export const NEEDS = ["Custom Business Software", "SaaS & MVP Development", "AI Business Automation", "Client Portals", "Software Modernization & Integrations", "Ongoing Development", "Shopify Development & CRO", "AI Product Content & Creatives", "E-commerce Operations Automation", "Custom Software & AI Automation", "E-commerce Development & Growth"] as const;
 
 /** Time floor before a submission is plausibly human, in ms. */
 export const MIN_ELAPSED_MS = 3000;

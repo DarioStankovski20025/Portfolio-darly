@@ -30,7 +30,7 @@ const PEOPLE = [
 
 export function Leadership() {
   return (
-    <section className="section-y bg-paper">
+    <section className="section-y bg-paper d-leadership">
       <div className="shell">
         <div className="grid gap-[clamp(1.5rem,3vw,3rem)] lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
@@ -53,8 +53,7 @@ export function Leadership() {
           <div className="lg:col-span-4 lg:col-start-9">
             <Reveal delay={0.06}>
               <p className="t-body max-w-[40ch]">
-                No account layer, no handoff to a junior team after the kickoff
-                call.
+                Meet the people behind the strategy, design and development of your project.
               </p>
             </Reveal>
           </div>

@@ -25,7 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
           <div><b>02</b><p>We talk through your business, your goals and the tools you use today.</p></div>
           <div><b>03</b><p>You leave with a clear next step, and we decide together if a project makes sense.</p></div>
         </div>
-        <a href="mailto:dario@darly.agency">Prefer email? dario@darly.agency ↗</a>
+        <a href="mailto:dario@thedarly.agency">Prefer email? dario@thedarly.agency ↗</a>
       </div>
       <div className="contact-booking-panel">
         <div className="contact-form-title">

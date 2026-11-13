@@ -84,7 +84,6 @@ export function StoreAuditForm() {
         setSent({ host: url.hostname.replace(/^www\./, ""), email: f.email.trim(), name: f.name.trim().split(/\s+/)[0] });
         setStatus("sent");
         track("audit_request", { store: url.hostname });
-        requestAnimationFrame(() => card.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }));
         return;
       }
       if (res.status === 400 && json?.errors) {
@@ -107,7 +106,7 @@ export function StoreAuditForm() {
     <div className="sa-card" ref={card}>
       <AnimatePresence mode="wait" initial={false}>
         {status === "sent" && sent ? (
-          <motion.div key="sent" className="sa-success" onAnimationComplete={() => successTitle.current?.focus({ preventScroll: true })} initial={enter} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+          <motion.div key="sent" className="sa-success" onAnimationStart={() => card.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" })} onAnimationComplete={() => successTitle.current?.focus({ preventScroll: true })} initial={enter} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
             <div className="sa-success-badge" aria-hidden="true">
               <motion.span initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}>
                 <Check strokeWidth={2.4} />

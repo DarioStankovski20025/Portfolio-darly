@@ -189,3 +189,86 @@ export function validateAudit(input: unknown): AuditResult {
   if (!url || Object.keys(errors).length) return { ok: false, errors };
   return { ok: true, value: { ...value, url: url.toString() }, url };
 }
+
+/* ------------------------------------------------------------------ */
+/* Automation assessment (/automation)                                 */
+
+export const BUSINESS_TYPES = [
+  "E-commerce / online store",
+  "Agency / consultancy",
+  "Professional services",
+  "Retail / local shop",
+  "Hospitality / restaurant",
+  "Healthcare / clinic",
+  "Real estate",
+  "Construction / trades",
+  "Logistics / transport",
+  "Manufacturing",
+  "Education / training",
+  "SaaS / tech",
+] as const;
+
+export type AutomationFields = {
+  name: string;
+  email: string;
+  website: string;
+  businessType: string;
+  /** Free text when the visitor picks "Other". */
+  businessTypeOther: string;
+  country: string;
+  city: string;
+  manualWork: string;
+  tools: string;
+};
+
+export type AutomationPayload = AutomationFields & {
+  elapsedMs: number;
+  company_url: string;
+};
+
+export type AutomationResult =
+  | { ok: true; value: AutomationPayload; website: URL | null; businessLabel: string }
+  | { ok: false; errors: FieldErrors<keyof AutomationFields> };
+
+/** Shared by the form and /api/automation, so the rules cannot drift. */
+export function validateAutomation(input: unknown): AutomationResult {
+  const source = (input ?? {}) as Record<string, unknown>;
+
+  const value: AutomationPayload = {
+    name: str(source.name, MAX.name),
+    email: str(source.email, MAX.email),
+    website: str(source.website, MAX.url),
+    businessType: str(source.businessType, 80),
+    businessTypeOther: str(source.businessTypeOther, 120),
+    country: str(source.country, 80),
+    city: str(source.city, 80),
+    manualWork: str(source.manualWork, MAX.message),
+    tools: str(source.tools, 1000),
+    elapsedMs: num(source.elapsedMs),
+    company_url: str(source.company_url, 200),
+  };
+
+  const errors: FieldErrors<keyof AutomationFields> = {};
+
+  if (value.name.length < 2) errors.name = "Tell us who to address the ideas to";
+  if (!EMAIL_RE.test(value.email)) errors.email = "We need a valid email to send the ideas to";
+
+  const website = value.website ? normaliseUrl(value.website) : null;
+  if (value.website && !website) errors.website = "That doesn't look like a website — leave it empty if you don't have one";
+
+  const known = (BUSINESS_TYPES as readonly string[]).includes(value.businessType);
+  if (value.businessType === "Other") {
+    if (value.businessTypeOther.length < 2) errors.businessTypeOther = "What kind of business is it?";
+  } else if (!known) {
+    errors.businessType = "Pick the closest match, or choose Other";
+  }
+
+  if (value.country.length < 2) errors.country = "Which country are you based in?";
+  if (value.city.length < 2) errors.city = "Which city?";
+  if (value.manualWork.length < 20)
+    errors.manualWork = "A few sentences about the manual work helps us a lot";
+
+  if (Object.keys(errors).length) return { ok: false, errors };
+  const businessLabel = value.businessType === "Other" ? value.businessTypeOther : value.businessType;
+  return { ok: true, value: { ...value, website: website ? website.toString() : "" }, website, businessLabel };
+}

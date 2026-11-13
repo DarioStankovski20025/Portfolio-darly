@@ -704,3 +704,35 @@
   .sa-foot{flex-direction:column;align-items:center;text-align:center;gap:8px}
 }
 @media(prefers-reduced-motion:reduce){.sa-tag i,.sa-success-badge i,.sa-steps li.active>span,.sa-spin{animation:none}.sa-btn,.sa-btn svg{transition:none}}
+
+/* /automation — reuses the /audit (sa-*) page kit, plus grouped fields and chips. */
+@media(min-width:981px){.au-main{grid-template-columns:minmax(0,1fr) minmax(0,600px)}}
+.au-stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.au-stats>div{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--sa-line);border-radius:12px;background:#0b1525aa}
+.au-stats b{font-size:28px;font-weight:500;letter-spacing:-.04em;color:var(--sa-accent-2);line-height:1}
+.au-stats span{font:10px var(--font-geist-mono),monospace;letter-spacing:.6px;line-height:1.45;color:var(--sa-muted);text-transform:uppercase}
+.au-group{border:0;margin:0 0 8px;padding:0;min-width:0}
+.au-group+.au-group{border-top:1px solid var(--sa-line);padding-top:20px;margin-top:6px}
+.au-group legend{display:flex;align-items:center;gap:10px;padding:0;margin-bottom:16px;font-size:13px;font-weight:600;color:var(--sa-text)}
+.au-group legend b{font:10px var(--font-geist-mono),monospace;color:var(--sa-accent-2);border:1px solid var(--sa-line-2);border-radius:999px;padding:3px 8px}
+.au-label{font-size:12px;font-weight:500;color:#c4d0e2}
+.au-chips{display:flex;flex-wrap:wrap;gap:8px}
+.au-chips button{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px 14px;border:1px solid var(--sa-line-2);border-radius:999px;background:#081222;color:#c4d0e2;font-size:13px;line-height:1.2;cursor:pointer;transition:border-color .2s,background .2s,color .2s}
+.au-chips button:hover{border-color:#4a6488;color:var(--sa-text)}
+.au-chips button.on{background:#2868fa26;border-color:var(--sa-accent-2);color:#fff}
+.au-chips button svg{width:14px;height:14px;color:var(--sa-accent-2)}
+.au-chips button:focus-visible{outline:3px solid var(--sa-accent-2);outline-offset:2px}
+.sa-field.invalid .au-chips button{border-color:#ff7a7a77}
+.au-icon input{padding-left:44px}
+.au-hint{margin:0;font-size:12px;line-height:1.5;color:var(--sa-dim)}
+.au-group:disabled{opacity:.7}
+@media(max-width:560px){
+  .au-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .au-stats>div{flex-direction:column;align-items:flex-start;gap:6px;padding:12px}
+  .au-stats b{font-size:24px}
+  .au-stats span{font-size:9px}
+  .au-chips button{font-size:12.5px;padding:8px 12px}
+}
+.au-main .sa-form-col{position:static}
+.au-main .sa-intro h1{max-width:16ch;font-size:clamp(40px,4.6vw,70px)}
+@media(max-width:560px){.au-main .sa-intro h1{font-size:clamp(34px,9.6vw,44px)}}
